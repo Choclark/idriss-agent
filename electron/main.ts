@@ -1,11 +1,13 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, globalShortcut } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { PythonShell } from 'python-shell'
 import path from 'node:path'
 import "../src/lib/langgraph.tsx"
 import "../src/utils/fileManager.ts"
 import dotenv from "dotenv"
 dotenv.config()
+// import "../src/lib/PythonExec.ts"
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -35,35 +37,59 @@ function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
     autoHideMenuBar:true,
+    frame:false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
-  agent = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
-    autoHideMenuBar:true,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
-    },
-  })
+  // agent = new BrowserWindow({
+  //   icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+  //   autoHideMenuBar:true,
+  //   webPreferences: {
+  //     preload: path.join(__dirname, 'preload.mjs'),
+  //   },
+  // })
   
-  agent.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})
-  agent.setAlwaysOnTop(true,"screen-saver",1)
+  // agent.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})
+  // agent.setAlwaysOnTop(true,"screen-saver",1)
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
     win?.webContents.openDevTools()
+    // Run the Python script and communicate with React frontend
+  
+
   })
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
-    agent.loadURL(VITE_DEV_SERVER_URL+'/agent')
+    // agent.loadURL(VITE_DEV_SERVER_URL+'/agent')
   } else {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
-    agent.loadFile(path.join(RENDERER_DIST, 'agent.html'))
+    // agent.loadFile(path.join(RENDERER_DIST, 'agent.html'))
   }
+    // Create agent window only in dev mode and when triggered
+    if (process.env.NODE_ENV === 'development') {
+      // Register a global shortcut to show the agent window
+      globalShortcut.register('CmdOrCtrl+Shift+A', () => {
+        if (!agent) {
+          agent = new BrowserWindow({
+            icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+            autoHideMenuBar: true,
+            webPreferences: {
+              preload: path.join(__dirname, 'preload.mjs'),
+            },
+          })
+          agent.loadURL(VITE_DEV_SERVER_URL ? `${VITE_DEV_SERVER_URL}/agent` : path.join(RENDERER_DIST, 'agent.html'))
+          agent.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+          agent.setAlwaysOnTop(true, "screen-saver", 1)
+        } else {
+          agent.show() // Show agent if already created
+        }
+      })
+    }
 }
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -73,6 +99,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
     win = null
+    agent = null
   }
 })
 
